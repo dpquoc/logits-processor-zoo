@@ -26,3 +26,10 @@ def text_to_token(tokenizer: PreTrainedTokenizer, text: str, last: bool):
         raise Exception(f"Can't convert {text} to token. It has {len(tokens)} tokens.")
 
     return tokens[-1]
+
+
+def get_new_line_tokens(tokenizer):
+    new_line_tokens = [token for token in tokenizer.get_vocab().values()
+                       if tokenizer.decode(token).endswith("\n")]
+
+    return set(new_line_tokens)
