@@ -34,11 +34,13 @@ class GenLengthLogitsProcessor:
     p (int, optional): The power to which the token count is raised when computing the boost value. Default is 2.
     complete_sentences (bool, optional): If True, boosts EOS token likelihood only when the last token is a full stop
                                         or a new line. Default is False.
-
+    boost_token_str (str, optional): A string to be tokenized and used instead of EOS. Especially useful for </think>.
     """
     def __init__(self, tokenizer: PreTrainedTokenizer, boost_factor: float,
-                 p: int = 2, complete_sentences: bool = False):
-        self.eos_token = tokenizer.eos_token_id
+                 p: int = 2, complete_sentences: bool = False, boost_token_str: str = None):
+        self.boost_token = tokenizer.eos_token_id
+        if boost_token_str is not None:
+            self.boost_token = text_to_token(tokenizer, boost_token_str, last=False)
         self.boost_factor = boost_factor
         self.p = p
         self.full_stop_token = text_to_token(tokenizer, "It is a sentence.", last=True)
@@ -47,11 +49,15 @@ class GenLengthLogitsProcessor:
 
     def __call__(self, prompt_tokens_ids: List[int], past_token_ids: List[int], scores: torch.Tensor) -> torch.Tensor:
         gen_length = len(past_token_ids)
-        boost_val = self.boost_factor * (gen_length ** self.p) / (10 ** self.p)
+
+        boost_val = 0
+        if not (self.boost_token in past_token_ids):
+            boost_val = self.boost_factor * (gen_length ** self.p) / (10 ** self.p)
 
         if self.complete_sentences and gen_length > 0:
             enabled = (past_token_ids[-1] == self.full_stop_token) | (past_token_ids[-1] == self.new_line_token)
-            scores[self.eos_token] += enabled * boost_val
+            scores[self.boost_token] += enabled * boost_val
         else:
-            scores[self.eos_token] += boost_val
+            scores[self.boost_token] += boost_val
+
         return scores

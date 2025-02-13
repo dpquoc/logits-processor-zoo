@@ -15,8 +15,19 @@ class vLLMRunner:
         if logits_processor_list is None:
             logits_processor_list = []
 
+        prompts_with_template = []
+        for prompt in prompts:
+            messages = [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+            text = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            prompts_with_template.append(text)
+
         gen_output = self.model.generate(
-            prompts,
+            prompts_with_template,
             vllm.SamplingParams(
                 n=1,
                 temperature=0,
