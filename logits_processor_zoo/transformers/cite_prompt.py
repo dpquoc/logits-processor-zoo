@@ -18,9 +18,10 @@
 from typing import List
 import torch
 from transformers import PreTrainedTokenizer
+from logits_processor_zoo.transformers.base import BaseLogitsProcessor
 
 
-class CiteFromPromptLogitsProcessor:
+class CiteFromPromptLogitsProcessor(BaseLogitsProcessor):
     """
     A logits processor which boosts or diminishes the likelihood of tokens present in the prompt (and optionally
     EOS token) to encourage the model to generate tokens similar to those seen in the prompt or vice versa.
@@ -29,25 +30,22 @@ class CiteFromPromptLogitsProcessor:
     Parameters
     ----------
     tokenizer (PreTrainedTokenizer): The tokenizer used by the LLM.
-    prompts (List[str]): Prompts in the batch.
     boost_factor (float): A factor to boost the likelihood of the tokens from the prompt.
                             Negative values are used for the opposite effect.
     boost_eos (bool, optional): If True, boosts EOS token too.
     """
-    def __init__(self, tokenizer: PreTrainedTokenizer, prompts: List[str], boost_factor: float = 1.0,
-                 boost_eos: bool = True):
+    def __init__(self, tokenizer: PreTrainedTokenizer, boost_factor: float = 1.0, boost_eos: bool = True):
+        super().__init__()
         self.boost_factor = boost_factor
+        self.eos_token_id = tokenizer.eos_token_id
+        self.boost_eos = boost_eos
 
-        self.boost_ids = []
-        for prompt in prompts:
-            prompt_tokens = set(tokenizer.encode(prompt))
-
-            if boost_eos:
-                prompt_tokens.add(tokenizer.eos_token_id)
-
-            self.boost_ids.append(list(prompt_tokens))
-
-    def __call__(self, input_ids: List[int], scores: torch.Tensor) -> torch.Tensor:
+    def _process(self, input_ids: List[int], scores: torch.Tensor) -> torch.Tensor:
         for i in range(scores.shape[0]):
-            scores[i, self.boost_ids[i]] += self.boost_factor
+            tokens = set(self.prompt_token_ids[i])
+            if self.boost_eos:
+                tokens.add(self.eos_token_id)
+
+            tokens = list(tokens)
+            scores[i, tokens] += self.boost_factor
         return scores
