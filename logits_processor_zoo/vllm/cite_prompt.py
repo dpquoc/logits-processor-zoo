@@ -46,6 +46,6 @@ class CiteFromPromptLogitsProcessor:
         if self.boost_eos:
             tokens.add(self.eos_token_id)
 
-        tokens = list(tokens)
+        tokens = [t for t in tokens if t < scores.shape[0]]
         scores[tokens] += self.boost_factor
         return scores
