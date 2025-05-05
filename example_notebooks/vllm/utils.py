@@ -1,4 +1,9 @@
+import os
 import vllm
+
+# vLLM V1 does not currently accept logits processor so we need to disable it
+# https://docs.vllm.ai/en/latest/getting_started/v1_user_guide.html#deprecated-features
+os.environ["VLLM_USE_V1"] = "0"
 
 
 class vLLMRunner:
