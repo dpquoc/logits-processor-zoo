@@ -39,6 +39,7 @@ class GenLengthLogitsProcessor:
     def __init__(self, tokenizer: PreTrainedTokenizer, boost_factor: float,
                  p: int = 2, complete_sentences: bool = False, boost_token_str: str = None):
         self.boost_token = tokenizer.eos_token_id
+        self.boost_token_str = boost_token_str
         if boost_token_str is not None:
             self.boost_token = text_to_token(tokenizer, boost_token_str, last=False)
         self.boost_factor = boost_factor

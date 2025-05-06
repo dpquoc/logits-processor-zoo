@@ -41,11 +41,12 @@ class CiteFromPromptLogitsProcessor(BaseLogitsProcessor):
         self.boost_eos = boost_eos
 
     def _process(self, input_ids: List[int], scores: torch.Tensor) -> torch.Tensor:
+        voc_size = scores.shape[1]
         for i in range(scores.shape[0]):
             tokens = set(self.prompt_token_ids[i])
             if self.boost_eos:
                 tokens.add(self.eos_token_id)
 
-            tokens = list(tokens)
+            tokens = [t for t in tokens if t < voc_size]
             scores[i, tokens] += self.boost_factor
         return scores
