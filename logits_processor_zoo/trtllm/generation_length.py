@@ -18,14 +18,14 @@
 from typing import List, Optional
 from transformers import PreTrainedTokenizer
 import torch
+from tensorrt_llm.sampling_params import LogitsProcessor
 from logits_processor_zoo.utils import text_to_token
 
 
-class GenLengthLogitsProcessor:
+class GenLengthLogitsProcessor(LogitsProcessor):
     """
     A logits processor that adjusts the likelihood of the end-of-sequence (EOS) token
     based on the length of the generated sequence, encouraging or discouraging shorter answers.
-    WARNING: Create a new object before every model.generate call since token_count is accumulated.
 
     Parameters
     ----------
@@ -35,32 +35,38 @@ class GenLengthLogitsProcessor:
     p (int, optional): The power to which the token count is raised when computing the boost value. Default is 2.
     complete_sentences (bool, optional): If True, boosts EOS token likelihood only when the last token is a full stop
                                         or a new line. Default is False.
-
+    boost_token_str (str, optional): A string to be tokenized and used instead of EOS. Especially useful for </think>.
     """
-
     def __init__(self, tokenizer: PreTrainedTokenizer, boost_factor: float,
-                 p: int = 2, complete_sentences: bool = False):
-        self.eos_token = tokenizer.eos_token_id
+                 p: int = 2, complete_sentences: bool = False, boost_token_str: str = None):
+
+        self.tokenizer = tokenizer
+        self.boost_token = self.tokenizer.eos_token_id
+        self.boost_token_str = boost_token_str
+        if boost_token_str is not None:
+            self.boost_token = text_to_token(self.tokenizer, boost_token_str, last=False)
         self.boost_factor = boost_factor
         self.p = p
-        self.token_count = 0
-        self.full_stop_token = text_to_token(tokenizer, "It is a sentence.", last=True)
-        self.new_line_token = text_to_token(tokenizer, "It is a new line\n", last=True)
+        self.full_stop_token = text_to_token(self.tokenizer, "It is a sentence.", last=True)
+        self.new_line_token = text_to_token(self.tokenizer, "It is a new line\n", last=True)
         self.complete_sentences = complete_sentences
+        self.token_count = 0
 
-    def __call__(self, req_ids_batch: List[int], logits_batch: List[torch.Tensor],
-                 ids_batch: List[List[List[int]]], stream_ptr,
-                 client_ids_batch: List[Optional[int]]):
+    def __call__(self, req_id: int, logits: torch.Tensor,
+                 token_ids: List[List[int]], stream_ptr: Optional[int],
+                 client_id: Optional[int]) -> None:
 
         boost_val = self.boost_factor * (self.token_count ** self.p) / (10 ** self.p)
 
-        with torch.cuda.stream(torch.cuda.ExternalStream(stream_ptr)):
-            ids_batch = torch.LongTensor(ids_batch).to(logits_batch.device, non_blocking=True)
+        stream = None if stream_ptr is None else torch.cuda.ExternalStream(stream_ptr)
+
+        with torch.cuda.stream(stream):
+            ids = torch.LongTensor(token_ids).to(logits.device, non_blocking=True)
 
             if self.complete_sentences:
-                enabled = (ids_batch[:, -1] == self.full_stop_token) | (ids_batch[:, -1] == self.new_line_token)
-                logits_batch[:, :, self.eos_token] += enabled * boost_val
+                enabled = (ids[:, -1] == self.full_stop_token) | (ids[:, -1] == self.new_line_token)
+                logits[:, :, self.boost_token] += enabled * boost_val
             else:
-                logits_batch[:, :, self.eos_token] += boost_val
+                logits[:, :, self.boost_token] += boost_val
 
         self.token_count += 1

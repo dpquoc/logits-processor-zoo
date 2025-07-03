@@ -18,7 +18,7 @@ pip install logits-processor-zoo
 ## Supported Frameworks
 * transformers
 * vLLM
-* TensorRT-LLM
+* TensorRT-LLM (>=0.20.0)
 
 ## Usage
 
@@ -87,3 +87,5 @@ One common use case is to force writing python code just after thinking:
 trigger_python = TriggerPhraseLogitsProcessor(phrase="\n```python", trigger_token_phrase="</think>", 
                                               tokenizer=tokenizer, trigger_count=1, trigger_after=True)
 ```
+### PreventHallucinationLogitsProcessor
+A logits processor that mitigates hallucinated model outputs by enforcing a predefined fallback phrase when token confidence falls below a specified threshold.
