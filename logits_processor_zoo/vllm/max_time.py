@@ -19,10 +19,10 @@ import time
 from typing import List
 import torch
 from transformers import PreTrainedTokenizer, AutoTokenizer
-from logits_processor_zoo.utils import text_to_token, enforce_tokens
+from logits_processor_zoo.utils import text_to_token, enforce_tokens, SentenceChecker
 
 
-class MaxTimeLogitsProcessor:
+class MaxTimeLogitsProcessor(SentenceChecker):
     """
     A logits processor that enforces the end-of-sentence (EOS) token after a specified maximum time passes.
     Useful for controlling generation time and ensuring responses complete within time constraints.
@@ -47,13 +47,12 @@ class MaxTimeLogitsProcessor:
         self.tokenizer = tokenizer
         if isinstance(self.tokenizer, str):
             self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer)
+        SentenceChecker.__init__(self, self.tokenizer)
 
         self.boost_token = self.tokenizer.eos_token_id
         self.boost_token_str = boost_token_str
         if boost_token_str is not None:
             self.boost_token = text_to_token(self.tokenizer, boost_token_str, last=False)
-        self.full_stop_token = text_to_token(self.tokenizer, "It is a sentence.", last=True)
-        self.new_line_token = text_to_token(self.tokenizer, "It is a new line\n", last=True)
         self.complete_sentences = complete_sentences
         self.max_time = max_time
         self._reset()
@@ -77,6 +76,8 @@ class MaxTimeLogitsProcessor:
         past_token_ids: List[int],
         scores: torch.Tensor,
     ) -> torch.Tensor:
+        if self.boost_token in past_token_ids:  # do not force repeatedly
+            return scores
 
         elapsed_time = time.time() - self.start_time
         time_exceeded = elapsed_time > self.max_time
@@ -84,7 +85,7 @@ class MaxTimeLogitsProcessor:
 
         enabled = True
         if self.complete_sentences and gen_length > 0:
-            enabled = (past_token_ids[-1] == self.full_stop_token) | (past_token_ids[-1] == self.new_line_token)
+            enabled = self._check_sentence_end(past_token_ids)
 
         if time_exceeded and enabled:
             scores = enforce_tokens(scores, [self.boost_token])
