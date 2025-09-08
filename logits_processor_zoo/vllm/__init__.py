@@ -20,9 +20,10 @@ from .cite_prompt import CiteFromPromptLogitsProcessor
 from .last_phrase import ForceLastPhraseLogitsProcessor
 from .multiple_choice import MultipleChoiceLogitsProcessor
 from .trigger_phrase import TriggerPhraseLogitsProcessor
+from .trigger_multiple_choice import TriggeredMultipleChoiceLogitsProcessor
 from .prevent_hallucination import PreventHallucinationLogitsProcessor
 from .max_time import MaxTimeLogitsProcessor
 
 __all__ = ['GenLengthLogitsProcessor', 'CiteFromPromptLogitsProcessor', 'ForceLastPhraseLogitsProcessor',
            'MultipleChoiceLogitsProcessor', 'TriggerPhraseLogitsProcessor', 'PreventHallucinationLogitsProcessor',
-           'MaxTimeLogitsProcessor']
+           'MaxTimeLogitsProcessor', 'TriggeredMultipleChoiceLogitsProcessor']
